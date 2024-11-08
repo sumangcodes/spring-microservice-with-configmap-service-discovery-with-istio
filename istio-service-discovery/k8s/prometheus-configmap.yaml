@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: istio-system
+data:
+  alerting_rules.yml: "{}"
+  alerts: "{}"
+  allow-snippet-annotations: "false"
+  prometheus.yml: |
+    global:
+      evaluation_interval: 1m
+      scrape_interval: 15s
+      scrape_timeout: 10s
+
+    rule_files:
+      - /etc/config/recording_rules.yml
+      - /etc/config/alerting_rules.yml
+      - /etc/config/rules
+      - /etc/config/alerts
+
+    scrape_configs:
+      - job_name: 'spring-boot-services'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: demo;(service-a|service-b);http  # Replace 'demo' with your actual namespace
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+            replacement: $1
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+            target_label: __address__
+            regex: (.+)
+            replacement: $1:8080  # Adjust port to the correct one if necessary
+        static_configs:
+          - targets: ['service-a:8080', 'service-b:8080']  # Adjust if necessary
+
+      - job_name: prometheus
+        static_configs:
+          - targets: ['localhost:9090']
+
+      # Add more jobs as needed...
